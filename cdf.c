@@ -1,6 +1,16 @@
+//
+//  main.c
+//  TraceGenerator
+//
+//  Created by Yiran on 2018/11/25.
+//  Copyright © 2018年 Yiran. All rights reserved.
+//
+
 #include "cdf.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <math.h>
 
 
 #define LINK_CAPACITY_BASE    1000000000
@@ -12,13 +22,13 @@ void init_cdf(struct cdf_table *table)
 {
     if(!table)
         return;
-
+    
     table->entries = (struct cdf_entry*)malloc(TG_CDF_TABLE_ENTRY * sizeof(struct cdf_entry));
     table->num_entry = 0;
     table->max_entry = TG_CDF_TABLE_ENTRY;
     table->min_cdf = 0;
     table->max_cdf = 1;
-
+    
     if (!(table->entries))
         perror("Error: malloc entries in init_cdf()");
 }
@@ -37,14 +47,16 @@ void load_cdf(struct cdf_table *table, const char *file_name)
     char line[256] = {0};
     struct cdf_entry *e = NULL;
     int i = 0;
-
+    
     if (!table)
         return;
-
+    
     fd = fopen(file_name, "r");
-    if (!fd)
+    if (!fd){
+        printf("name:%s.\n",file_name);
         perror("Error: open the CDF file in load_cdf()");
-
+    }
+    
     while (fgets(line, sizeof(line), fd))
     {
         /* resize entries */
@@ -59,14 +71,14 @@ void load_cdf(struct cdf_table *table, const char *file_name)
             free(table->entries);
             table->entries = e;
         }
-
+        
         sscanf(line, "%lf %lf", &(table->entries[table->num_entry].value), &(table->entries[table->num_entry].cdf));
-
+        
         if (table->min_cdf > table->entries[table->num_entry].cdf)
             table->min_cdf = table->entries[table->num_entry].cdf;
         if (table->max_cdf < table->entries[table->num_entry].cdf)
             table->max_cdf = table->entries[table->num_entry].cdf;
-
+        
         table->num_entry++;
     }
     fclose(fd);
@@ -76,10 +88,10 @@ void load_cdf(struct cdf_table *table, const char *file_name)
 void print_cdf(struct cdf_table *table)
 {
     int i = 0;
-
+    
     if (!table)
         return;
-
+    
     for (i = 0; i < table->num_entry; i++)
         printf("%.2f %.2f\n", table->entries[i].value, table->entries[i].cdf);
 }
@@ -90,10 +102,10 @@ double avg_cdf(struct cdf_table *table)
     int i = 0;
     double avg = 0;
     double value, prob;
-
+    
     if (!table)
         return 0;
-
+    
     for (i = 0; i < table->num_entry; i++)
     {
         if (i == 0)
@@ -108,7 +120,7 @@ double avg_cdf(struct cdf_table *table)
         }
         avg += (value * prob);
     }
-
+    
     return avg;
 }
 
@@ -132,10 +144,10 @@ double gen_random_cdf(struct cdf_table *table)
     int i = 0;
     double x = rand_range(table->min_cdf, table->max_cdf);
     /* printf("%f %f %f\n", x, table->min_cdf, table->max_cdf); */
-
+    
     if (!table)
         return 0;
-
+    
     for (i = 0; i < table->num_entry; i++)
     {
         if (x <= table->entries[i].cdf)
@@ -146,29 +158,29 @@ double gen_random_cdf(struct cdf_table *table)
                 return interpolate(x, table->entries[i-1].cdf, table->entries[i-1].value, table->entries[i].cdf, table->entries[i].value);
         }
     }
-
+    
     return table->entries[table->num_entry-1].value;
 }
 
 double poission_gen_interval(double avg_rate)
 {
     if (avg_rate > 0)
-       return -logf(1.0 - (double)rand() / RAND_MAX) / avg_rate;
+        return -logf(1.0 - (double)rand() / RAND_MAX) / avg_rate;
     else
-       return 0;
+        return 0;
 }
 
-int rand_range (int min, int max)
+int rand_range_int (int min, int max)
 {
     return min + ((double)max - min) * rand () / RAND_MAX;
 }
 
 
-/*generate trace file 
-input parameters: load(%), servernum, link capacity, cdffile
-output parameters:
-starttime, src, dst, size*/
-int main()
+/*generate trace file
+ input parameters: load(%), servernum, link capacity, cdffile
+ output parameters:
+ starttime, src, dest, size*/
+int main(int argc, const char * argv[])
 {
     char cdfFileName[20] = "DCTCP.txt";
     int servernum = 128;
@@ -180,68 +192,70 @@ int main()
     long flowSize = 0;
     long totalFlowSize = 0;
     unsigned randomSeed = 0;
-    int i, j,flag,src,dest;
+    int i, j,src,dest;
     double startTime;
     FILE *fd = NULL;
-    char output[100];
-    output = "DCTCP50.txt";
-
+    char output[100] = "DCTCPload50.txt";
+    
+    
     //Initiate cdf_table
     struct cdf_table cdfTable;
+    
     init_cdf (&cdfTable);
     load_cdf (&cdfTable, cdfFileName);
-
+    
+    
     //Calculating request rate
-    double requestRate = load * linkc * LINK_CAPACITY_BASE * servernum / (8 * avg_cdf (cdfTable)) / servernum;
+    double requestRate = load * linkc * LINK_CAPACITY_BASE * servernum / (8 * avg_cdf (&cdfTable)) / servernum;
     printf("Average request rate: %lf per second\n", requestRate);
-
+    
     //Initialize random seed
     if (randomSeed == 0)
     {
-        srand ((unsigned)time (NULL));
+        srand ((unsigned)time(NULL));
     }
     else
     {
         srand (randomSeed);
     }
-
+    
     fd = fopen(output, "w");
     if (!fd)
     {
         printf("Error: open the CDF file in when writing to file");
         return 0;
     }
-    //generate cross tor traffic
+    //generate cross leaf traffic
     for(i = 0; i < LeafNum; i++)
     {
         for (j = 0; j < k; j++)
         {
             
             src = i * k + j;
-            dst = src;
+            dest = src;
             startTime = START_TIME + poission_gen_interval (requestRate);
             while (startTime < FLOW_LAUNCH_END_TIME)
             {
                 flowCount ++;
-                while (dst >= i * k && dst < i * k + k)
+                while (dest >= i * k && dest < i * k + k)
                 {
-                    dst = rand_range (0, k * LeafNum);
+                    dest = rand_range_int (0, k * LeafNum);
                 }
-                flowSize = gen_random_cdf (cdfTable);
+                flowSize = gen_random_cdf (&cdfTable);
                 totalFlowSize += flowSize;
-                fprintf(fp,"%.5f %d %d %ld\n",startTime,src,dst,flowSize);
+                fprintf(fd,"%.5f %d %d %ld\n",startTime,src,dest,flowSize);
                 startTime += poission_gen_interval (requestRate);
             }
         }
     }
     
     
-    fclose(fp);
+    fclose(fd);
     printf("Total flow: %ld.\n ",flowCount);
-
-    pritnf("Actual average flow size: %lf.\n",double(totalFlowSize) / flowCount);
-
-
-
+    
+    printf("Actual average flow size: %ld.\n",totalFlowSize/flowCount);
+    
+    
+    
     return 0;
 }

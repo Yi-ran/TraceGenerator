@@ -1,3 +1,13 @@
+//
+//  cdf.h
+//  TraceGenerator
+//
+//  Created by Yiran on 2018/11/25.
+//  Copyright © 2018年 Yiran. All rights reserved.
+//
+
+#ifndef cdf_h
+#define cdf_h
 
 #define TG_CDF_TABLE_ENTRY 32
 
@@ -34,3 +44,6 @@ double avg_cdf(struct cdf_table *table);
 
 /* Generate a random value based on CDF distribution */
 double gen_random_cdf(struct cdf_table *table);
+
+
+#endif /* cdf_h */
