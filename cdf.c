@@ -184,9 +184,9 @@ int main(int argc, const char * argv[])
 {
     char cdfFileName[20] = "DCTCP.txt";
     int servernum = 128;
-    int k = 8;
+    int k = 16; //server num per leaf
     int LeafNum = servernum / k;
-    double load = 0.5;
+    double load = 0.3;
     double linkc = 10;
     long flowCount = 0;
     long flowSize = 0;
@@ -195,7 +195,7 @@ int main(int argc, const char * argv[])
     int i, j,src,dest;
     double startTime;
     FILE *fd = NULL;
-    char output[100] = "DCTCPload50.txt";
+    char output[100] = "websearchload30.txt";
     
     
     //Initiate cdf_table
@@ -205,8 +205,8 @@ int main(int argc, const char * argv[])
     load_cdf (&cdfTable, cdfFileName);
     
     
-    //Calculating request rate
-    double requestRate = load * linkc * LINK_CAPACITY_BASE * servernum / (8 * avg_cdf (&cdfTable)) / servernum;
+    //Calculating request rate.  oversubscription:2
+    double requestRate = load * linkc * LINK_CAPACITY_BASE * k / 2 /(8 * avg_cdf (&cdfTable)) / k;
     printf("Average request rate: %lf per second\n", requestRate);
     
     //Initialize random seed
@@ -222,7 +222,7 @@ int main(int argc, const char * argv[])
     fd = fopen(output, "w");
     if (!fd)
     {
-        printf("Error: open the CDF file in when writing to file");
+        printf("Error: open the CDF file when writing to file");
         return 0;
     }
     //generate cross leaf traffic
@@ -243,7 +243,7 @@ int main(int argc, const char * argv[])
                 }
                 flowSize = gen_random_cdf (&cdfTable);
                 totalFlowSize += flowSize;
-                fprintf(fd,"%.5f %d %d %ld\n",startTime,src,dest,flowSize);
+                fprintf(fd,"%.8f %d %d %ld\n",startTime,src,dest,flowSize);
                 startTime += poission_gen_interval (requestRate);
             }
         }
